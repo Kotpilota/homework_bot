@@ -3,12 +3,15 @@ import os
 import sys
 import time
 from http import HTTPStatus
+from typing import Dict, List
 
 import requests
 from dotenv import load_dotenv
+from requests.exceptions import RequestException
 from telebot import TeleBot
+from telebot.apihelper import ApiTelegramException
 
-from exceptions import APIResponseError, HomeworkStatusError, MissingTokenError
+from exceptions import APIResponseError, HomeworkStatusError
 
 load_dotenv()
 
@@ -27,30 +30,27 @@ HOMEWORK_VERDICTS = {
 }
 
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
 logger = logging.getLogger(__name__)
 
 
-def check_tokens():
+def check_tokens() -> List[str]:
     """
     Проверяет наличие всех переменных окружения.
 
     Returns:
-        bool: True, если все токены присутствуют.
+        List[str]: Список отсутствующих переменных окружения.
     """
-    tokens = [PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]
-    if not all(tokens):
-        raise MissingTokenError(
-            'Отсутствуют обязательные переменные окружения.'
-        )
-    return True
+    missing_tokens = []
+    if not PRACTICUM_TOKEN:
+        missing_tokens.append('PRACTICUM_TOKEN')
+    if not TELEGRAM_TOKEN:
+        missing_tokens.append('TELEGRAM_TOKEN')
+    if not TELEGRAM_CHAT_ID:
+        missing_tokens.append('TELEGRAM_CHAT_ID')
+    return missing_tokens
 
 
-def send_message(bot, message):
+def send_message(bot: TeleBot, message: str) -> None:
     """
     Отправляет сообщение в Telegram.
 
@@ -60,12 +60,13 @@ def send_message(bot, message):
     """
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
-        logger.debug(f'Бот отправил сообщение: "{message}"')
-    except Exception as error:
+    except (ApiTelegramException, RequestException) as error:
         logger.error(f'Ошибка отправки сообщения: {error}')
+    else:
+        logger.debug(f'Бот отправил сообщение: "{message}"')
 
 
-def get_api_answer(timestamp):
+def get_api_answer(timestamp: int) -> Dict:
     """
     Делает запрос к API Яндекс.Практикума.
 
@@ -76,6 +77,7 @@ def get_api_answer(timestamp):
         dict: Ответ API в формате словаря.
     """
     params = {'from_date': timestamp}
+    logger.info(f'Начинаем запрос к API: {ENDPOINT} с параметрами {params}')
     try:
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
         if response.status_code != HTTPStatus.OK:
@@ -83,11 +85,11 @@ def get_api_answer(timestamp):
                 f'Эндпоинт недоступен. Код: {response.status_code}'
             )
         return response.json()
-    except requests.RequestException as error:
+    except RequestException as error:
         raise APIResponseError(f'Ошибка запроса к API: {error}')
 
 
-def check_response(response):
+def check_response(response: Dict) -> List[Dict]:
     """
     Проверяет корректность ответа API.
 
@@ -106,7 +108,7 @@ def check_response(response):
     return response['homeworks']
 
 
-def parse_status(homework):
+def parse_status(homework: Dict) -> str:
     """
     Извлекает статус домашней работы.
 
@@ -126,13 +128,15 @@ def parse_status(homework):
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
-def main():
+def main() -> None:
     """Основной цикл работы бота."""
-    try:
-        check_tokens()
-    except MissingTokenError as e:
-        logger.critical(e)
-        sys.exit('Программа остановлена.')
+    missing_tokens = check_tokens()
+    if missing_tokens:
+        for token in missing_tokens:
+            logger.critical(f'Отсутствует переменная окружения: {token}')
+        sys.exit(
+            'Программа остановлена из-за отсутствия переменных окружения.'
+        )
 
     bot = TeleBot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
@@ -142,20 +146,29 @@ def main():
         try:
             response = get_api_answer(timestamp)
             homeworks = check_response(response)
+
             if homeworks:
-                for homework in homeworks:
-                    message = parse_status(homework)
-                    send_message(bot, message)
+                last_homework = homeworks[0]
+                message = parse_status(last_homework)
+                send_message(bot, message)
+                timestamp = response.get('current_date', timestamp)
             else:
-                logger.debug('Новых статусов нет.')
-            timestamp = response.get('current_date', timestamp)
+                message = 'Новых статусов нет.'
+                send_message(bot, message)
+
         except Exception as error:
             logger.error(f'Ошибка в работе программы: {error}')
             if previous_error != str(error):
                 send_message(bot, f'Ошибка в работе программы: {error}')
                 previous_error = str(error)
-        time.sleep(RETRY_PERIOD)
+        finally:
+            time.sleep(RETRY_PERIOD)
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s [%(levelname)s] %(message)s',
+        handlers=[logging.StreamHandler(sys.stdout)]
+    )
     main()
