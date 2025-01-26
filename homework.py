@@ -29,7 +29,6 @@ HOMEWORK_VERDICTS = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -141,6 +140,7 @@ def main() -> None:
     bot = TeleBot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
     previous_error = None
+    previous_status = None
 
     while True:
         try:
@@ -150,17 +150,23 @@ def main() -> None:
             if homeworks:
                 last_homework = homeworks[0]
                 message = parse_status(last_homework)
-                send_message(bot, message)
+
+                if message != previous_status:
+                    send_message(bot, message)
+                    previous_status = message
+
                 timestamp = response.get('current_date', timestamp)
             else:
                 message = 'Новых статусов нет.'
-                send_message(bot, message)
+                if message != previous_status:
+                    send_message(bot, message)
+                    previous_status = message
 
         except Exception as error:
             logger.error(f'Ошибка в работе программы: {error}')
-            if previous_error != str(error):
+            if previous_error != error:
                 send_message(bot, f'Ошибка в работе программы: {error}')
-                previous_error = str(error)
+                previous_error = error
         finally:
             time.sleep(RETRY_PERIOD)
 
