@@ -139,8 +139,7 @@ def main() -> None:
 
     bot = TeleBot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
-    previous_error = None
-    previous_status = None
+    previous_message = None
 
     while True:
         try:
@@ -150,25 +149,23 @@ def main() -> None:
             if homeworks:
                 last_homework = homeworks[0]
                 message = parse_status(last_homework)
-
-                if message != previous_status:
-                    send_message(bot, message)
-                    previous_status = message
-
-                timestamp = response.get('current_date', timestamp)
             else:
                 message = 'Новых статусов нет.'
-                if message != previous_status:
-                    send_message(bot, message)
-                    previous_status = message
+
+            if message != previous_message:
+                send_message(bot, message)
+                previous_message = message
+                timestamp = response.get('current_date', timestamp)
 
         except Exception as error:
             logger.error(f'Ошибка в работе программы: {error}')
-            if previous_error != error:
-                send_message(bot, f'Ошибка в работе программы: {error}')
-                previous_error = error
+            error_message = f'Ошибка в работе программы: {error}'
+            if error_message != previous_message:
+                send_message(bot, error_message)
+                previous_message = error_message
         finally:
             time.sleep(RETRY_PERIOD)
+
 
 
 if __name__ == '__main__':
