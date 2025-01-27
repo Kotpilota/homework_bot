@@ -167,7 +167,6 @@ def main() -> None:
             time.sleep(RETRY_PERIOD)
 
 
-
 if __name__ == '__main__':
     logging.basicConfig(
         level=logging.DEBUG,
