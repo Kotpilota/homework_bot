@@ -26,6 +26,7 @@ pip install -r requirements.txt
 
 ### 4. Создайте файл .env
 ```bash
+touch .env
 cp .env.example .env
 ```
 
