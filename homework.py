@@ -121,8 +121,10 @@ def parse_status(homework: Dict) -> str:
     """
     if 'homework_name' not in homework or 'status' not in homework:
         raise KeyError('Нет ключей homework_name или status.')
+
     homework_name = homework['homework_name']
     homework_status = homework['status']
+
     if homework_status not in HOMEWORK_VERDICTS:
         raise HomeworkStatusError(f'Неизвестный статус: {homework_status}')
     verdict = HOMEWORK_VERDICTS[homework_status]
