@@ -66,6 +66,7 @@ def send_message(bot: TeleBot, message: str) -> bool:
         logger.debug(f'Бот отправил сообщение: "{message}"')
         return True
 
+
 def get_api_answer(timestamp: int) -> Dict:
     """
     Делает запрос к API Яндекс.Практикума.
