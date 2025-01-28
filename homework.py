@@ -49,7 +49,7 @@ def check_tokens() -> List[str]:
     return missing_tokens
 
 
-def send_message(bot: TeleBot, message: str) -> None:
+def send_message(bot: TeleBot, message: str) -> bool:
     """
     Отправляет сообщение в Telegram.
 
@@ -61,9 +61,10 @@ def send_message(bot: TeleBot, message: str) -> None:
         bot.send_message(TELEGRAM_CHAT_ID, message)
     except (ApiTelegramException, RequestException) as error:
         logger.error(f'Ошибка отправки сообщения: {error}')
+        return False
     else:
         logger.debug(f'Бот отправил сообщение: "{message}"')
-
+        return True
 
 def get_api_answer(timestamp: int) -> Dict:
     """
@@ -153,9 +154,9 @@ def main() -> None:
                 message = 'Новых статусов нет.'
 
             if message != previous_message:
-                send_message(bot, message)
-                previous_message = message
-                timestamp = response.get('current_date', timestamp)
+                if send_message(bot, message):
+                    previous_message = message
+                    timestamp = response.get('current_date', timestamp)
 
         except Exception as error:
             logger.error(f'Ошибка в работе программы: {error}')
